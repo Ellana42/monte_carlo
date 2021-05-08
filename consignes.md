@@ -1,0 +1,5 @@
+- présentation orale de 15 minutes
+- pas de rapport mais on peut faire un résumé avec graphes résultats le jour de la soutenance
+- envoyer en avance le code avec chargé de td 
+- on peut s'aider d'internet / litérature mais citer
+- toujours évaluer l'erreur de monte carlo, penser à l'acf pacf pour mc mc
