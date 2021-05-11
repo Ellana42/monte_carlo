@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import random
+import matplotlib.pyplot as plt
 
 # Let's set our seed
 
@@ -28,8 +29,6 @@ def brownian_motion(N=50, T=1, h=1):
     
     return brownian_motion
 
-#W = brownian_motion(N=1000)
-
 # Simulons le modèle CIR : https://towardsdatascience.com/brownian-motion-with-python-9083ebc46ff0
 # St+1 - St = delta * alpha * (b - St) + sigma * sqrt(St) * epsilont 
 
@@ -41,43 +40,40 @@ def cir(s0=s0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
         spots.append(spots[-1] + ds)
     return spots
 
-# Simulons C
+# Fonctions de simulation de C
 
 def phi(S, r=r, T=T, k=k, K=K):
     return math.exp(-r * T) * max(1/k * sum(S) - K, 0)
 
-def phi_anti(S, r=r, T=T, k=k, K=K):
-    return math.exp(-r * T) * max(- 1/k * sum(S) - K, 0)
+mc_C = lambda n : 1/n * sum([phi(cir()) for _ in range(n)])
 
-sample_size = 100
+def mc_C_anti(n):
+    su = [phi(cir()) + phi([-cir for cir in cir()]) for _ in range(n)]
+    return 1/(2 * n) * sum(su)
 
-C_li = [phi(cir()) for _ in range(sample_size)]
-C = 1/sample_size * sum([phi(cir()) for _ in range(sample_size)])
+def mc_C_control(n):
+    Z = np.random.normal(size=n)
+    phi_X = [phi(cir()) for _ in range(n)]
+    beta = np.cov(phi_X, Z)[0][1]
 
-# Réduction de variance par variable antithétique
+    return 1/n * sum([phi_X[_] - beta * Z[_] for _ in range(n)])
 
-#anti = [phi(cir()) +  phi_anti(cir()) for _ in range(sample_size)]
-C_anti = 1/(2 * sample_size) * sum([phi(cir()) + phi_anti(cir()) for _ in range(sample_size)])
+# Simulations 
 
-# Réduction de variance par variable de controle
+n = 100
 
-def cov(a, b):
-    if len(a) != len(b):
-        return
+C = mc_C(n) # Simulation classique de C
+C_anti = mc_C_anti(n) # Réduction de variance par variable antithétique
+C_control = mc_C_control(n) # Réduction de variance par variable de controle
 
-    a_mean = np.mean(a)
-    b_mean = np.mean(b)
+# Comparons les erreures de Monte-Carlo
 
-    sum = 0
+def plot_mcerr(methods, N, n, labels):
+    simus = [[method(n) for _ in range(N)] for method in methods]
+    plt.boxplot(simus, labels=labels)
+    plt.show()
 
-    for i in range(0, len(a)):
-        sum += ((a[i] - a_mean) * (b[i] - b_mean))
+plot_mcerr([mc_C, mc_C_control], 100, 100, labels=['Monte Carlo', 'Control Variates'])
 
-    return sum/(len(a)-1)
-
-Z = np.random.normal(size=sample_size)
-phi_X = [phi(cir()) for _ in range(sample_size)]
-beta = cov(phi_X, Z)
-
-C_control = 1/sample_size * sum([phi_X[_] - beta * Z[_] for _ in range(sample_size)])
+# TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
