@@ -46,13 +46,16 @@ def cir(s0=s0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
 def phi(CIR, r=r, T=T, k=k, K=K):
     return math.exp(-r * T) * max(1/k * sum(CIR) - K, 0)
 
+def phi_anti(CIR, r=r, T=T, k=k, K=K):
+    return math.exp(-r * T) * max(- 1/k * sum(CIR) - K, 0)
 sample_size = 100
 
-#C = [phi(cir()) for _ in range(sample_size)]
+#C_li = [phi(cir()) for _ in range(sample_size)]
 C = 1/sample_size * sum([phi(cir()) for _ in range(sample_size)])
 
 # Réduction de variance par variable antithétique
 
-
+#anti = [phi(cir()) +  phi_anti(cir()) for _ in range(sample_size)]
+C_anti = 1/(2 * sample_size) * sum([phi(cir()) + phi_anti(cir()) for _ in range(sample_size)])
 
 # Réduction de variance par variable de controle
