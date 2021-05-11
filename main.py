@@ -43,14 +43,15 @@ def cir(s0=s0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
 
 # Simulons C
 
-def phi(CIR, r=r, T=T, k=k, K=K):
-    return math.exp(-r * T) * max(1/k * sum(CIR) - K, 0)
+def phi(S, r=r, T=T, k=k, K=K):
+    return math.exp(-r * T) * max(1/k * sum(S) - K, 0)
 
-def phi_anti(CIR, r=r, T=T, k=k, K=K):
-    return math.exp(-r * T) * max(- 1/k * sum(CIR) - K, 0)
+def phi_anti(S, r=r, T=T, k=k, K=K):
+    return math.exp(-r * T) * max(- 1/k * sum(S) - K, 0)
+
 sample_size = 100
 
-#C_li = [phi(cir()) for _ in range(sample_size)]
+C_li = [phi(cir()) for _ in range(sample_size)]
 C = 1/sample_size * sum([phi(cir()) for _ in range(sample_size)])
 
 # Réduction de variance par variable antithétique
@@ -59,3 +60,24 @@ C = 1/sample_size * sum([phi(cir()) for _ in range(sample_size)])
 C_anti = 1/(2 * sample_size) * sum([phi(cir()) + phi_anti(cir()) for _ in range(sample_size)])
 
 # Réduction de variance par variable de controle
+
+def cov(a, b):
+    if len(a) != len(b):
+        return
+
+    a_mean = np.mean(a)
+    b_mean = np.mean(b)
+
+    sum = 0
+
+    for i in range(0, len(a)):
+        sum += ((a[i] - a_mean) * (b[i] - b_mean))
+
+    return sum/(len(a)-1)
+
+Z = np.random.normal(size=sample_size)
+phi_X = [phi(cir()) for _ in range(sample_size)]
+beta = cov(phi_X, Z)
+
+C_control = 1/sample_size * sum([phi_X[_] - beta * Z[_] for _ in range(sample_size)])
+
