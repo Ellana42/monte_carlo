@@ -31,6 +31,7 @@ def brownian_motion(N=50, T=1, h=1):
 
 # Simulons le modèle CIR : https://towardsdatascience.com/brownian-motion-with-python-9083ebc46ff0
 # St+1 - St = delta * alpha * (b - St) + sigma * sqrt(St) * epsilont 
+# TODO check cir why negative 
 
 def cir(s0=s0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
     dt = T/float(k)
@@ -73,7 +74,50 @@ def plot_mcerr(methods, N, n, labels):
     plt.boxplot(simus, labels=labels)
     plt.show()
 
-plot_mcerr([mc_C, mc_C_control], 100, 100, labels=['Monte Carlo', 'Control Variates'])
+#plot_mcerr([mc_C, mc_C_control], 100, 100, labels=['Monte Carlo', 'Control Variates'])
 
 # TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
+# Multi-level Monte-Carlo
+
+M = 5
+N_ = 500
+e = math.e ** -10
+L = math.log(e ** -1) / math.log(M) 
+
+def cir_mlmc(l, brownian, s0=s0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
+    dt = M ** -l * T
+    spots = [s0]
+    for i in range(M ** l):
+        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(spots[-1]) * np.random.normal()
+        print(ds)
+        spots.append(spots[-1] + ds)
+    return spots
+
+def P(l, brownian):
+    while True : 
+        try:
+            return phi(cir_mlmc(l, brownian))
+        except ValueError:
+            continue
+
+h = lambda l : M ** -l * T
+V = lambda l : np.var(cir_mlmc(l)) 
+#P = lambda l : phi(cir_mlmc(l))
+N = lambda l : 23 * (V(l) * h(l)) ** 0.5
+
+brownian = lambda l : [np.random.normal() for _ in range(M ** l)]
+
+def brownian_bis(brownian):
+    return [sum(brownian[i:i+M]) for i in range(len(brownian)//M)]
+
+
+
+def Y(l):
+    su = 0
+    for i range(N(l)):
+        bro = brownian(l)
+        bbro = brownian_bis(bro)
+        p = P(l, bro) - P(l-1, bbro)
+        su += p
+    return 1/N(l) * su
