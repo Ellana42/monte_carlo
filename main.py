@@ -91,6 +91,8 @@ def plot_mcerr(methods, N, n, labels):
 M = 5
 e = math.e ** -10
 L = int(math.log(e ** -1) / math.log(M))
+N_0 = 100
+
 brownian = lambda l : [np.random.normal() for _ in range(M ** l)]
 
 def cir_mlmc(l, brownian, S_0=S_0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
@@ -98,21 +100,14 @@ def cir_mlmc(l, brownian, S_0=S_0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
     spots = [S_0]
     for i in range(M ** l):
         ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * brownian[i]
-        print(ds)
         spots.append(spots[-1] + ds)
     return spots
 
-def P(l, brownian):
-    while True : 
-        try:
-            return phi(cir_mlmc(l, brownian))
-        except ValueError:
-            continue
 
 h = lambda l : M ** -l * T
-V = lambda l : np.var(cir_mlmc(l, brownian(M**l)))
+V = lambda l : np.var(cir_mlmc(l, brownian(l)))
 P = lambda l, brownian : phi(cir_mlmc(l, brownian))
-N = lambda l : int(23 * (V(l) * h(l)) ** 0.5)
+N = lambda l : int(100 * (V(l) * h(l)) ** 0.5)
 
 
 def brownian_bis(brownian):
@@ -120,6 +115,7 @@ def brownian_bis(brownian):
 
 def Y(l):
     su = 0
+    print('NL : ' + str(N(l)))
     for i in range(N(l)):
         bro = brownian(l)
         bbro = brownian_bis(bro)
@@ -127,13 +123,9 @@ def Y(l):
         su += p
     return 1/N(l) * su
 
-#Y_0 = 1/N(0) * sum(P(0, brownian(0)) for _ in range(N(0)))
+Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
+Y = Y_0 + sum(Y(l) for l in range(1, L))
 
-#Y = Y_0 + sum(Y(l) for l in range(1, L))
-
-# TODO int N(l) ?
-# TODO N_0
-# TODO fix P(l)
 # TODO Illustrer comment mlmc peut réduire le temps de calcul
 # TODO Reprendre la comparaison en se basant sur du quasi mc
 
