@@ -17,7 +17,7 @@ r = 0.05
 K = 5
 k = 20
 t = lambda i : i/20
-s0 = 20
+S_0 = 20
 
 # Simulons un mouvement brownien - source : https://towardsdatascience.com/animated-visualization-of-brownian-motion-in-python-3518ecf28533
 
@@ -33,11 +33,19 @@ def brownian_motion(N=50, T=1, h=1):
 # St+1 - St = delta * alpha * (b - St) + sigma * sqrt(St) * epsilont 
 # TODO check cir why negative 
 
-def cir(s0=s0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+def cir(S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
     dt = T/float(k)
-    spots = [s0]
+    spots = [S_0]
     for i in range(k):
-        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(spots[-1]) * np.random.normal()
+        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * np.random.normal()
+        spots.append(spots[-1] + ds)
+    return spots
+
+def anti_cir(S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+    dt = T/float(k)
+    spots = [S_0]
+    for i in range(k):
+        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * - np.random.normal()
         spots.append(spots[-1] + ds)
     return spots
 
@@ -49,7 +57,7 @@ def phi(S, r=r, T=T, k=k, K=K):
 mc_C = lambda n : 1/n * sum([phi(cir()) for _ in range(n)])
 
 def mc_C_anti(n):
-    su = [phi(cir()) + phi([-cir for cir in cir()]) for _ in range(n)]
+    su = [phi(cir()) + phi(anti_cir()) for _ in range(n)]
     return 1/(2 * n) * sum(su)
 
 def mc_C_control(n):
@@ -74,22 +82,22 @@ def plot_mcerr(methods, N, n, labels):
     plt.boxplot(simus, labels=labels)
     plt.show()
 
-#plot_mcerr([mc_C, mc_C_control], 100, 100, labels=['Monte Carlo', 'Control Variates'])
+#plot_mcerr([mc_C, mc_C_anti, mc_C_control], 100, 100, labels=['Monte Carlo', 'Antithetic Variates', 'Control Variates'])
 
 # TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
 # Multi-level Monte-Carlo
 
 M = 5
-N_ = 500
 e = math.e ** -10
-L = math.log(e ** -1) / math.log(M) 
+L = int(math.log(e ** -1) / math.log(M))
+brownian = lambda l : [np.random.normal() for _ in range(M ** l)]
 
-def cir_mlmc(l, brownian, s0=s0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
+def cir_mlmc(l, brownian, S_0=S_0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
     dt = M ** -l * T
-    spots = [s0]
+    spots = [S_0]
     for i in range(M ** l):
-        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(spots[-1]) * np.random.normal()
+        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * brownian[i]
         print(ds)
         spots.append(spots[-1] + ds)
     return spots
@@ -102,22 +110,33 @@ def P(l, brownian):
             continue
 
 h = lambda l : M ** -l * T
-V = lambda l : np.var(cir_mlmc(l)) 
-#P = lambda l : phi(cir_mlmc(l))
-N = lambda l : 23 * (V(l) * h(l)) ** 0.5
+V = lambda l : np.var(cir_mlmc(l, brownian(M**l)))
+P = lambda l, brownian : phi(cir_mlmc(l, brownian))
+N = lambda l : int(23 * (V(l) * h(l)) ** 0.5)
 
-brownian = lambda l : [np.random.normal() for _ in range(M ** l)]
 
 def brownian_bis(brownian):
     return [sum(brownian[i:i+M]) for i in range(len(brownian)//M)]
 
-
-
 def Y(l):
     su = 0
-    for i range(N(l)):
+    for i in range(N(l)):
         bro = brownian(l)
         bbro = brownian_bis(bro)
         p = P(l, bro) - P(l-1, bbro)
         su += p
     return 1/N(l) * su
+
+#Y_0 = 1/N(0) * sum(P(0, brownian(0)) for _ in range(N(0)))
+
+#Y = Y_0 + sum(Y(l) for l in range(1, L))
+
+# TODO int N(l) ?
+# TODO N_0
+# TODO fix P(l)
+# TODO Illustrer comment mlmc peut réduire le temps de calcul
+# TODO Reprendre la comparaison en se basant sur du quasi mc
+
+# Implémentation quasi MC
+
+
