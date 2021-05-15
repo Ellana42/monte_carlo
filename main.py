@@ -2,6 +2,8 @@ import numpy as np
 import math
 import random
 import matplotlib.pyplot as plt
+import sobol_seq
+from scipy.stats import norm
 
 # Let's set our seed
 
@@ -123,12 +125,111 @@ def Y(l):
         su += p
     return 1/N(l) * su
 
-Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
-Y = Y_0 + sum(Y(l) for l in range(1, L))
+#Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
+#Y = Y_0 + sum(Y(l) for l in range(1, L))
 
 # TODO Illustrer comment mlmc peut réduire le temps de calcul
-# TODO Reprendre la comparaison en se basant sur du quasi mc
 
 # Implémentation quasi MC
 
 
+# Génération séquence halton : https://gist.github.com/tupui/cea0a91cc127ea3890ac0f002f887bae
+
+def primes_from_2_to(n):
+    """Prime number from 2 to n.
+    From `StackOverflow <https://stackoverflow.com/questions/2068372>`_.
+    :param int n: sup bound with ``n >= 6``.
+    :return: primes in 2 <= p < n.
+    :rtype: list
+    """
+    sieve = np.ones(n // 3 + (n % 6 == 2), dtype=np.bool)
+    for i in range(1, int(n ** 0.5) // 3 + 1):
+        if sieve[i]:
+            k = 3 * i + 1 | 1
+            sieve[k * k // 3::2 * k] = False
+            sieve[k * (k - 2 * (i & 1) + 4) // 3::2 * k] = False
+    return np.r_[2, 3, ((3 * np.nonzero(sieve)[0][1:] + 1) | 1)]
+
+
+def van_der_corput(n_sample, base=2):
+    """Van der Corput sequence.
+    :param int n_sample: number of element of the sequence.
+    :param int base: base of the sequence.
+    :return: sequence of Van der Corput.
+    :rtype: list (n_samples,)
+    """
+    sequence = []
+    for i in range(n_sample):
+        n_th_number, denom = 0., 1.
+        while i > 0:
+            i, remainder = divmod(i, base)
+            denom *= base
+            n_th_number += remainder / denom
+        sequence.append(n_th_number)
+
+    return sequence
+
+
+def halton(dim, n_sample):
+    """Halton sequence.
+    :param int dim: dimension
+    :param int n_sample: number of samples.
+    :return: sequence of Halton.
+    :rtype: array_like (n_samples, n_features)
+    """
+    big_number = 10
+    while 'Not enought primes':
+        base = primes_from_2_to(big_number)[:dim]
+        if len(base) == dim:
+            break
+        big_number += 1000
+
+    # Generate a sample using a Van der Corput sequence per dimension.
+    sample = [van_der_corput(n_sample + 1, dim) for dim in base]
+    sample = np.stack(sample, axis=-1)[1:]
+
+    return norm.ppf(sample)
+# Génération séquence sobol normale
+
+def i4_sobol_generate_std_normal(dim_num, n, skip=0):
+    """
+    Generates multivariate standard normal quasi-random variables.
+    Parameters:
+      Input, integer dim_num, the spatial dimension.
+      Input, integer n, the number of points to generate.
+      Input, integer SKIP, the number of initial points to skip.
+      Output, real np array of shape (n, dim_num).
+    """
+
+    sobols = sobol_seq.i4_sobol_generate(dim_num, n, skip)
+
+    normals = norm.ppf(sobols)
+
+    return normals
+
+# Calculons option asiatique  
+
+
+def cir_qmc(halt, S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+    dt = T/float(k)
+    spots = [S_0]
+    for i in range(k):
+        ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * halt[i]
+        spots.append(spots[-1] + ds)
+    return spots
+
+halton_ = halton(k, n)
+mc_qmc_C = lambda n, halton_: 1/n * sum([phi(cir_qmc(halton_[i])) for i in range(n)])
+
+def plot_qmc(N, n):
+    halton_ = halton(k, n * N)
+    simus = []
+    for i in range(N):
+        print(halton_[i*n:(i + 1)*n])
+        C = mc_qmc_C(n, halton_[i*n:(i + 1)*n])
+        print(C)
+        simus.append(C)
+    plt.boxplot(simus)
+    plt.show()
+
+# TODO plot tout dans le même graphe
