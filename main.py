@@ -132,7 +132,6 @@ def Y(l):
 
 # Implémentation quasi MC
 
-
 # Génération séquence halton : https://gist.github.com/tupui/cea0a91cc127ea3890ac0f002f887bae
 
 def primes_from_2_to(n):
@@ -189,23 +188,6 @@ def halton(dim, n_sample):
     sample = np.stack(sample, axis=-1)[1:]
 
     return norm.ppf(sample)
-# Génération séquence sobol normale
-
-def i4_sobol_generate_std_normal(dim_num, n, skip=0):
-    """
-    Generates multivariate standard normal quasi-random variables.
-    Parameters:
-      Input, integer dim_num, the spatial dimension.
-      Input, integer n, the number of points to generate.
-      Input, integer SKIP, the number of initial points to skip.
-      Output, real np array of shape (n, dim_num).
-    """
-
-    sobols = sobol_seq.i4_sobol_generate(dim_num, n, skip)
-
-    normals = norm.ppf(sobols)
-
-    return normals
 
 # Calculons option asiatique  
 
@@ -218,7 +200,6 @@ def cir_qmc(halt, S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
         spots.append(spots[-1] + ds)
     return spots
 
-halton_ = halton(k, n)
 mc_qmc_C = lambda n, halton_: 1/n * sum([phi(cir_qmc(halton_[i])) for i in range(n)])
 
 def plot_qmc(N, n):
@@ -229,7 +210,17 @@ def plot_qmc(N, n):
         C = mc_qmc_C(n, halton_[i*n:(i + 1)*n])
         print(C)
         simus.append(C)
-    plt.boxplot(simus)
-    plt.show()
+    return simus
 
 # TODO plot tout dans le même graphe
+
+def plot_everything(N, n):
+    methods = [mc_C, mc_C_anti, mc_C_control]
+    labels = ['Monte Carlo', 'Antithetic Variates', 'Control Variates', 'QMC']
+    simus = [[method(n) for _ in range(N)] for method in methods]
+    simu_qmc = plot_qmc(N, n)
+    simus.append(simu_qmc)
+    plt.boxplot(simus, labels=labels)
+    plt.show()
+
+#plot_everything(100, 100)
