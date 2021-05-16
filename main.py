@@ -9,18 +9,6 @@ from scipy.stats import norm
 
 np.random.seed(777)
 
-# Fixons nos constantes
-
-alpha = 0.2
-b = 0
-sigma = 0.3
-T = 1
-r = 0.05
-K = 5
-k = 20
-t = lambda i : i/20
-S_0 = 20
-
 # Simulons un mouvement brownien - source : https://towardsdatascience.com/animated-visualization-of-brownian-motion-in-python-3518ecf28533
 
 def brownian_motion(N=50, T=1, h=1):
@@ -31,40 +19,63 @@ def brownian_motion(N=50, T=1, h=1):
     
     return brownian_motion
 
+# Fixons nos constantes
+
+alpha = 0.2
+b = 0
+sigma = 0.3
+T = 1
+r = 0.05
+K = 5
+k = 20
+S_0 = 20
+
+defaults = {
+    'alpha' : alpha,
+    'b' : b,
+    'sigma' : sigma,
+    'T' : T,
+    'r' : r,
+    'K' : K,
+    'k' : k,
+    'S_0' : S_0
+}
+
+
 # Simulons le modèle CIR : https://towardsdatascience.com/brownian-motion-with-python-9083ebc46ff0
 # St+1 - St = delta * alpha * (b - St) + sigma * sqrt(St) * epsilont 
-# TODO check cir why negative 
 
-def cir(S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+def cir(S_0, alpha, b, sigma, k, T, r, K):
     dt = T/float(k)
     spots = [S_0]
     for i in range(k):
         ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * np.random.normal()
         spots.append(spots[-1] + ds)
-    return spots
+    return spots, r, T, k, K
 
-def anti_cir(S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+def anti_cir(S_0, alpha, b, sigma, k, T, r, K):
     dt = T/float(k)
     spots = [S_0]
     for i in range(k):
         ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * - np.random.normal()
         spots.append(spots[-1] + ds)
-    return spots
+    return spots, r, T, k, K
 
 # Fonctions de simulation de C
 
-def phi(S, r=r, T=T, k=k, K=K):
+def phi(S):
+    S, r, T, k, K = S
     return math.exp(-r * T) * max(1/k * sum(S) - K, 0)
 
-mc_C = lambda n : 1/n * sum([phi(cir()) for _ in range(n)])
+mc_C = lambda n, params : 1/n * sum([phi(cir(**params)) for _ in range(n)])
 
-def mc_C_anti(n):
-    su = [phi(cir()) + phi(anti_cir()) for _ in range(n)]
+def mc_C_anti(n, params):
+    su = [phi(cir(**params)) + phi(anti_cir(**params)) for _ in range(n)]
     return 1/(2 * n) * sum(su)
 
-def mc_C_control(n):
+def mc_C_control(n, params):
     Z = np.random.normal(size=n)
-    phi_X = [phi(cir()) for _ in range(n)]
+    phi_X = [phi(cir(**params)) for _ in range(n)]
     beta = np.cov(phi_X, Z)[0][1]
 
     return 1/n * sum([phi_X[_] - beta * Z[_] for _ in range(n)])
@@ -73,9 +84,9 @@ def mc_C_control(n):
 
 n = 100
 
-C = mc_C(n) # Simulation classique de C
-C_anti = mc_C_anti(n) # Réduction de variance par variable antithétique
-C_control = mc_C_control(n) # Réduction de variance par variable de controle
+C = mc_C(n, defaults) # Simulation classique de C
+C_anti = mc_C_anti(n, defaults) # Réduction de variance par variable antithétique
+C_control = mc_C_control(n, defaults) # Réduction de variance par variable de controle
 
 # Comparons les erreures de Monte-Carlo
 
@@ -86,6 +97,7 @@ def plot_mcerr(methods, N, n, labels):
 
 #plot_mcerr([mc_C, mc_C_anti, mc_C_control], 100, 100, labels=['Monte Carlo', 'Antithetic Variates', 'Control Variates'])
 
+
 # TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
 # Multi-level Monte-Carlo
@@ -95,21 +107,22 @@ e = math.e ** -10
 L = int(math.log(e ** -1) / math.log(M))
 N_0 = 100
 
+defaults_mlmc = {**defaults, 'M' : M}
 brownian = lambda l : [np.random.normal() for _ in range(M ** l)]
 
-def cir_mlmc(l, brownian, S_0=S_0, alpha=alpha, b=b, sigma=sigma, M=M, T=T):
+def cir_mlmc(l, brownian, S_0, alpha, b, sigma, M, T, r, k, K):
     dt = M ** -l * T
     spots = [S_0]
     for i in range(M ** l):
         ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * brownian[i]
         spots.append(spots[-1] + ds)
-    return spots
+    return spots, r, T, k, K
 
 
-h = lambda l : M ** -l * T
-V = lambda l : np.var(cir_mlmc(l, brownian(l)))
-P = lambda l, brownian : phi(cir_mlmc(l, brownian))
-N = lambda l : int(100 * (V(l) * h(l)) ** 0.5)
+H = lambda l : M ** -l * T
+V = lambda l : np.var(cir_mlmc(l, brownian(l), **defaults_mlmc)[0])
+P = lambda l, brownian : phi(cir_mlmc(l, brownian, **defaults_mlmc))
+N = lambda l : int(2 * math.exp(-2) *math.sqrt(V(l) * H(l)) * sum([math.sqrt(V(l)/H(l)) for l in range(l)])) + 1
 
 
 def brownian_bis(brownian):
@@ -125,8 +138,8 @@ def Y(l):
         su += p
     return 1/N(l) * su
 
-#Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
-#Y = Y_0 + sum(Y(l) for l in range(1, L))
+Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
+Y = Y_0 + sum(Y(l) for l in range(1, L))
 
 # TODO Illustrer comment mlmc peut réduire le temps de calcul
 
