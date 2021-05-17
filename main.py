@@ -4,6 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import sobol_seq
 from scipy.stats import norm
+import time
 
 # Let's set our seed
 
@@ -22,7 +23,7 @@ def brownian_motion(N=50, T=1, h=1):
 # Fixons nos constantes
 
 alpha = 0.2
-b = 0
+b = 20
 sigma = 0.3
 T = 1
 r = 0.05
@@ -84,26 +85,33 @@ def mc_C_control(n, params):
 
 n = 100
 
+start_MC = time.time()
 C = mc_C(n, defaults) # Simulation classique de C
+print('MC : {}'.format(time.time() - start_MC))
+
+start_MC_anti = time.time()
 C_anti = mc_C_anti(n, defaults) # Réduction de variance par variable antithétique
+print('MC_anti : {}'.format(time.time() - start_MC_anti))
+
+start_MC_cont = time.time()
 C_control = mc_C_control(n, defaults) # Réduction de variance par variable de controle
+print('MC_cont : {}'.format(time.time() - start_MC_cont))
 
 # Comparons les erreures de Monte-Carlo
 
-def plot_mcerr(methods, N, n, labels):
-    simus = [[method(n) for _ in range(N)] for method in methods]
+def plot_mcerr(methods, params, N, n, labels):
+    simus = [[method(n, params) for _ in range(N)] for method in methods]
     plt.boxplot(simus, labels=labels)
     plt.show()
 
-#plot_mcerr([mc_C, mc_C_anti, mc_C_control], 100, 100, labels=['Monte Carlo', 'Antithetic Variates', 'Control Variates'])
-
+#plot_mcerr([mc_C, mc_C_anti, mc_C_control], defaults, 100, 100, labels=['Monte Carlo', 'Antithetic Variates', 'Control Variates'])
 
 # TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
 # Multi-level Monte-Carlo
 
-M = 5
-e = math.e ** -10
+M = 2
+e = math.e ** -3
 L = int(math.log(e ** -1) / math.log(M))
 N_0 = 100
 
@@ -119,14 +127,14 @@ def cir_mlmc(l, brownian, S_0, alpha, b, sigma, M, T, r, k, K):
     return spots, r, T, k, K
 
 
-H = lambda l : M ** -l * T
+H = lambda l : M ** (-l) * T
 V = lambda l : np.var(cir_mlmc(l, brownian(l), **defaults_mlmc)[0])
 P = lambda l, brownian : phi(cir_mlmc(l, brownian, **defaults_mlmc))
-N = lambda l : int(2 * math.exp(-2) *math.sqrt(V(l) * H(l)) * sum([math.sqrt(V(l)/H(l)) for l in range(l)])) + 1
+N = lambda l : int(2 * e ** (-2) * math.sqrt(V(l) * H(l)) * sum([math.sqrt(V(l)/H(l)) for l in range(L)])) + 1
 
 
 def brownian_bis(brownian):
-    return [sum(brownian[i:i+M]) for i in range(len(brownian)//M)]
+    return [sum(brownian[i:i+M]) for i in range(0, len(brownian), M)]
 
 def Y(l):
     su = 0
@@ -138,8 +146,11 @@ def Y(l):
         su += p
     return 1/N(l) * su
 
+start_MLMC = time.time()
 Y_0 = 1/N_0 * sum(P(0, brownian(0)) for _ in range(N_0))
 Y = Y_0 + sum(Y(l) for l in range(1, L))
+print('MLMC : {}'.format(time.time() - start_MLMC))
+
 
 # TODO Illustrer comment mlmc peut réduire le temps de calcul
 
@@ -205,7 +216,7 @@ def halton(dim, n_sample):
 # Calculons option asiatique  
 
 
-def cir_qmc(halt, S_0=S_0, alpha=alpha, b=b, sigma=sigma, k=k, T=T):
+def cir_qmc(halt, S_0, alpha, b=b, sigma=sigma, k=k, T=T):
     dt = T/float(k)
     spots = [S_0]
     for i in range(k):
@@ -225,7 +236,6 @@ def plot_qmc(N, n):
         simus.append(C)
     return simus
 
-# TODO plot tout dans le même graphe
 
 def plot_everything(N, n):
     methods = [mc_C, mc_C_anti, mc_C_control]
