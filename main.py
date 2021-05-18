@@ -2,10 +2,8 @@ import numpy as np
 import math
 import random
 import matplotlib.pyplot as plt
-import sobol_seq
 from scipy.stats import norm
 import time
-
 # Let's set our seed
 
 np.random.seed(777)
@@ -106,7 +104,6 @@ def plot_mcerr(methods, params, N, n, labels):
 
 #plot_mcerr([mc_C, mc_C_anti, mc_C_control], defaults, 100, 100, labels=['Monte Carlo', 'Antithetic Variates', 'Control Variates'])
 
-# TODO faire varier les paramêtres et le pas de discrétisation, observer résultats
 
 # Multi-level Monte-Carlo
 
@@ -216,15 +213,19 @@ def halton(dim, n_sample):
 # Calculons option asiatique  
 
 
-def cir_qmc(halt, S_0, alpha, b=b, sigma=sigma, k=k, T=T):
+def cir_qmc(halt, S_0, alpha, b, sigma, k, T, r, K):
     dt = T/float(k)
     spots = [S_0]
     for i in range(k):
         ds = alpha * (b - spots[-1]) * dt + sigma * math.sqrt(dt * spots[-1]) * halt[i]
         spots.append(spots[-1] + ds)
-    return spots
+    return spots, r, T, k, K
 
-mc_qmc_C = lambda n, halton_: 1/n * sum([phi(cir_qmc(halton_[i])) for i in range(n)])
+mc_qmc_C = lambda n, halton_: 1/n * sum([phi(cir_qmc(halton_[i], **defaults)) for i in range(n)])
+
+start_MC_qmc = time.time()
+C_qmc = mc_qmc_C(n, halton(k, n)) # Réduction de variance par variable de controle
+print('MC_qmc : {}'.format(time.time() - start_MC_qmc))
 
 def plot_qmc(N, n):
     halton_ = halton(k, n * N)
@@ -245,5 +246,6 @@ def plot_everything(N, n):
     simus.append(simu_qmc)
     plt.boxplot(simus, labels=labels)
     plt.show()
+
 
 #plot_everything(100, 100)
